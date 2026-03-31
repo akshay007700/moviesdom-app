@@ -1,18 +1,19 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
 import HeroSlider from "../components/HeroSlider";
-import MovieRow from "../components/MovieRow";
 import MovieGrid from "../components/MovieGrid";
 import Pagination from "../components/Pagination";
 import { Helmet } from "react-helmet-async";
+import { fetchTrending, fetchPopular, fetchTopRated, fetchUpcoming, discoverMovies } from "../services/tmdb";
 
 export default function Home() {
-  const [movies, setMovies] = useState<any>({
+  const [heroMovies, setHeroMovies] = useState<any[]>([]);
+  const [sections, setSections] = useState<any>({
     trending: [],
     popular: [],
     topRated: [],
+    upcoming: [],
   });
-  const [discoverMovies, setDiscoverMovies] = useState<any[]>([]);
+  const [exploreMovies, setExploreMovies] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -21,25 +22,23 @@ export default function Home() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [
-          trending,
-          popular,
-          topRated,
-          discover,
-        ] = await Promise.all([
-          axios.get("/api/movies/trending"),
-          axios.get("/api/movies/popular"),
-          axios.get("/api/movies/top-rated"),
-          axios.get("/api/movies/discover?page=1"),
+        const [trending, popular, topRated, upcoming, discover] = await Promise.all([
+          fetchTrending(),
+          fetchPopular(),
+          fetchTopRated(),
+          fetchUpcoming(),
+          discoverMovies({ page: 1 }),
         ]);
 
-        setMovies({
-          trending: trending.data,
-          popular: popular.data,
-          topRated: topRated.data,
+        setHeroMovies(trending.results.slice(0, 5));
+        setSections({
+          trending: trending.results.slice(0, 10),
+          popular: popular.results.slice(0, 10),
+          topRated: topRated.results.slice(0, 10),
+          upcoming: upcoming.results.slice(0, 10),
         });
-        setDiscoverMovies(discover.data.results);
-        setTotalPages(discover.data.total_pages);
+        setExploreMovies(discover.results);
+        setTotalPages(discover.total_pages);
       } catch (error) {
         console.error("Error fetching home data:", error);
       } finally {
@@ -54,9 +53,12 @@ export default function Home() {
     setGridLoading(true);
     setCurrentPage(page);
     try {
-      const response = await axios.get(`/api/movies/discover?page=${page}`);
-      setDiscoverMovies(response.data.results);
-      window.scrollTo({ top: document.getElementById("explore")?.offsetTop || 0, behavior: "smooth" });
+      const data = await discoverMovies({ page });
+      setExploreMovies(data.results);
+      const element = document.getElementById("explore");
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth" });
+      }
     } catch (error) {
       console.error("Error fetching paginated movies:", error);
     } finally {
@@ -73,37 +75,55 @@ export default function Home() {
   }
 
   return (
-    <div className="pb-20">
+    <div className="pb-20 bg-background min-h-screen">
       <Helmet>
         <title>MoviesDom - Discover Your Favorite Movies</title>
         <meta name="description" content="MoviesDom is your ultimate destination for movie discovery, trailers, and OTT redirects." />
       </Helmet>
 
-      <HeroSlider movies={movies.trending.slice(0, 5)} />
+      <HeroSlider movies={heroMovies} />
 
-      <div className="relative z-10 -mt-16 md:-mt-32 space-y-4">
-        <MovieRow title="Top 10 Today" movies={movies.trending.slice(0, 10)} isTop10 />
-        <MovieRow title="Trending Now" movies={movies.trending} />
-        <MovieRow title="Popular Movies" movies={movies.popular} />
-        <MovieRow title="Top Rated" movies={movies.topRated} />
+      <div className="relative z-10 -mt-16 md:-mt-32 space-y-16">
+        <section className="space-y-8">
+          <h2 className="px-4 md:px-12 text-2xl md:text-4xl font-bold flex items-center gap-3">
+            Top 10 Today <span className="text-primary">🔥</span>
+          </h2>
+          <MovieGrid movies={sections.trending} />
+        </section>
 
-        <div id="explore" className="pt-12">
-          <h2 className="px-4 md:px-12 text-2xl md:text-3xl font-bold mb-8">Explore All Movies</h2>
-          {gridLoading ? (
-            <div className="h-40 flex items-center justify-center">
-              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : (
-            <>
-              <MovieGrid movies={discoverMovies} />
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-              />
-            </>
-          )}
-        </div>
+        <section className="space-y-8">
+          <h2 className="px-4 md:px-12 text-2xl md:text-4xl font-bold">Trending Now</h2>
+          <MovieGrid movies={sections.trending} />
+        </section>
+
+        <section className="space-y-8">
+          <h2 className="px-4 md:px-12 text-2xl md:text-4xl font-bold">Popular Movies</h2>
+          <MovieGrid movies={sections.popular} />
+        </section>
+
+        <section className="space-y-8">
+          <h2 className="px-4 md:px-12 text-2xl md:text-4xl font-bold">Top Rated</h2>
+          <MovieGrid movies={sections.topRated} />
+        </section>
+
+        <section className="space-y-8">
+          <h2 className="px-4 md:px-12 text-2xl md:text-4xl font-bold">New Releases</h2>
+          <MovieGrid movies={sections.upcoming} />
+        </section>
+
+        <section id="explore" className="pt-12 space-y-8">
+          <div className="px-4 md:px-12 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <h2 className="text-2xl md:text-4xl font-bold">Explore All Movies</h2>
+          </div>
+          
+          <MovieGrid movies={exploreMovies} loading={gridLoading} />
+          
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
+        </section>
       </div>
     </div>
   );
