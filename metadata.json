@@ -1,0 +1,5 @@
+{
+  "name": "MoviesDom",
+  "description": "A production-ready movie discovery platform inspired by Netflix UI, featuring movie information, trailers, and OTT redirects.",
+  "requestFramePermissions": []
+}
